@@ -24,7 +24,7 @@ runs:
   using: "composite"
   steps:
     - name: Set up python ${{ inputs.python-version }}
-      uses: actions/setup-python@v7
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
       with:
         python-version: ${{ inputs.python-version }}
         # No pip cache here: setup-python resolves cache-dependency-path
@@ -32,7 +32,7 @@ runs:
         # action's own requirements.txt.
 
     - name: Cache pip downloads
-      uses: actions/cache@v6
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ~/.cache/pip
         key: pip-${{ runner.os }}-${{ inputs.python-version }}-${{ github.action_ref }}
@@ -40,17 +40,47 @@ runs:
     - name: Install dependencies
       shell: bash
       run: |
-        python -m pip install -r "${{ github.action_path }}/requirements.txt"
+        # $GITHUB_ACTION_PATH is set by the runner for composite actions, so the
+        # path is never pasted into the script text.
+        python -m pip install --disable-pip-version-check \
+          -r "${GITHUB_ACTION_PATH}/requirements.txt"
 
     - name: Create visual diff
       shell: bash
+      env:
+        OUTPUT_DIRECTORY: ${{ inputs.output-directory }}
+        DIRECTORY_A: ${{ inputs.directory-a }}
+        DIRECTORY_B: ${{ inputs.directory-b }}
+        DPI: ${{ inputs.dpi }}
       run: |
-        mkdir -p "${{ inputs.output-directory }}/"
-        find "${{ inputs.directory-a }}" -type f -name '*.pdf' -print0 |
-          while IFS= read -r -d '' i; do
-            rel="${i#${{ inputs.directory-a }}/}"
-            out="${{ inputs.output-directory }}/${rel%.pdf}"
-            mkdir -p "$out" &&
-              diffpdf --dpi "${{ inputs.dpi }}" --skip-compare-text --output-dir "$out" \
-                "$i" "${{ inputs.directory-b }}/$rel"
-          done
+        if [[ ! "${DPI}" =~ ^[0-9]{1,4}$ ]]; then
+          echo "::error::'dpi' must be a whole number"
+          exit 1
+        fi
+
+        # Normalise: drop trailing slashes, and keep paths that start with '-'
+        # from being read as command line options.
+        norm() { local p="${1%/}"; [[ "${p}" == -* ]] && p="./${p}"; printf '%s' "${p}"; }
+        a="$(norm "${DIRECTORY_A}")"
+        b="$(norm "${DIRECTORY_B}")"
+        out_root="$(norm "${OUTPUT_DIRECTORY}")"
+
+        if [[ ! -d "${a}" ]]; then
+          echo "::error::directory-a does not exist or is not a directory"
+          exit 1
+        fi
+        mkdir -p -- "${out_root}"
+
+        status=0
+        while IFS= read -r -d '' i; do
+          rel="${i#"${a}"/}"
+          out="${out_root}/${rel%.pdf}"
+          mkdir -p -- "${out}"
+          # Keep going after a difference so every PDF is compared, and fail at the end.
+          if ! diffpdf --dpi "${DPI}" --skip-compare-text --output-dir "${out}" \
+                 "${i}" "${b}/${rel}"; then
+            echo "::warning::Differences or an error for: ${rel}"
+            status=1
+          fi
+        done < <(find "${a}" -type f -name '*.pdf' -print0)
+        exit "${status}"
