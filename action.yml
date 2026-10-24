@@ -30,7 +30,6 @@ runs:
       with:
         cache: 'pip' # caching pip dependencies
         python-version: ${{ inputs.python-version }}
-        cache-dependency-path: requirements*.txt
 
     - name: Install dependencies
       shell: bash
