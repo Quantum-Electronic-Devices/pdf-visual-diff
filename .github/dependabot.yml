@@ -1,7 +1,17 @@
 version: 2
 updates:
+  - package-ecosystem: "github-actions"
+    # Workflow files stored in the
+    # default location of `.github/workflows`
+    directory: "/"
+    schedule:
+      interval: "daily"
+    commit-message:
+      # Prefix all commit messages with "[gha] "
+      prefix: "[gha] "
+
   - package-ecosystem: "pip"
-    directory: "/visual_diff/"
+    directory: "/"
     schedule:
       interval: "daily"
     commit-message:
