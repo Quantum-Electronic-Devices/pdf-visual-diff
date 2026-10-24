@@ -1,0 +1,45 @@
+name: "Visually compare PDFs"
+inputs:
+  output-directory:
+    required: true
+    description: "The output directory containing the visual diffs"
+
+  directory-a:
+    required: true
+    description: "The 'a' input directory"
+
+  directory-b:
+    required: true
+    description: "The 'b' input directory"
+    default: 'build'
+
+  dpi:
+    required: false
+    description: "The dpi setting for the visual conversion"
+    default: '100'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Test for Python
+      run: |
+         python3 --version >/dev/null 2>&1 && echo "Python 3 is installed"
+      shell: bash
+
+    - name: Install dependencies
+      shell: bash
+      run: |
+        python -m pip install -r "${{ github.action_path }}/requirements.txt"
+
+    - name: Create visual diff
+      run: |
+        mkdir -p "${{ inputs.output-directory }}/"
+        find "${{ inputs.directory-a }}" -type f -name '*.pdf' -print0 |
+          while IFS= read -r -d '' i; do
+            rel="${i#${{ inputs.directory-a }}/}"
+            out="${{ inputs.output-directory }}/${rel%.pdf}"
+            mkdir -p "$out" &&
+              diffpdf --dpi "${{ inputs.dpi }}" --skip-compare-text --output-dir "$out" \
+                "$i" "${{ inputs.directory-b }}/$rel"
+          done
+      shell: bash
