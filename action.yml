@@ -28,7 +28,6 @@ runs:
     - name: Set up python ${{ inputs.python-version }}
       uses: actions/setup-python@v7
       with:
-        cache: 'pip' # caching pip dependencies
         python-version: ${{ inputs.python-version }}
 
     - name: Install dependencies
