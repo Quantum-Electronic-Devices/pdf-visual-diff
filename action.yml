@@ -15,7 +15,7 @@ inputs:
   dpi:
     description: "The dpi setting for the visual conversion"
     required: false
-    default: '100'
+    default: "100"
 
   python-version:
     description: "Python version"
