@@ -1,22 +1,20 @@
 name: "Visually compare PDFs"
+description: "A PDF diff action for regression tests"
+
 inputs:
   output-directory:
     description: "The output directory containing the visual diffs"
     required: true
-
   directory-a:
     description: "The 'a' input directory"
     required: true
-
   directory-b:
     description: "The 'b' input directory"
     required: true
-
   dpi:
     description: "The dpi setting for the visual conversion"
     required: false
     default: "100"
-
   python-version:
     description: "Python version"
     required: false
@@ -29,6 +27,15 @@ runs:
       uses: actions/setup-python@v7
       with:
         python-version: ${{ inputs.python-version }}
+        # No pip cache here: setup-python resolves cache-dependency-path
+        # relative to the caller's workspace, so it cannot see this
+        # action's own requirements.txt.
+
+    - name: Cache pip downloads
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: pip-${{ runner.os }}-${{ inputs.python-version }}-${{ github.action_ref }}
 
     - name: Install dependencies
       shell: bash
