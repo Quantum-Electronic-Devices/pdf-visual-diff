@@ -32,7 +32,7 @@ runs:
         # action's own requirements.txt.
 
     - name: Cache pip downloads
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: ~/.cache/pip
         key: pip-${{ runner.os }}-${{ inputs.python-version }}-${{ github.action_ref }}
