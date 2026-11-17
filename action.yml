@@ -9,7 +9,7 @@ inputs:
     description: "The 'a' input directory"
     required: true
   directory-b:
-    description: "The 'b' input directory"
+    description: "The 'b' input directory. Files only found in directory-b will cause a warning, but no error."
     required: true
   dpi:
     description: "The dpi setting for the visual conversion"
@@ -66,21 +66,54 @@ runs:
         out_root="$(norm "${OUTPUT_DIRECTORY}")"
 
         if [[ ! -d "${a}" ]]; then
-          echo "::error::directory-a does not exist or is not a directory"
+          echo "::error::directory-a ('${a}') does not exist or is not a directory"
+          exit 1
+        fi
+        if [[ ! -d "${b}" ]]; then
+          echo "::error::directory-b ('${b}') does not exist or is not a directory"
           exit 1
         fi
         mkdir -p -- "${out_root}"
 
         status=0
+        compared=0
+        missing=0
         while IFS= read -r -d '' i; do
           rel="${i#"${a}"/}"
+          other="${b}/${rel}"
+
+          # Both files must exist before we try to compare them.
+          if [[ ! -f "${i}" ]]; then
+            echo "::error::Missing file in directory-a: '${i}'"
+            missing=$((missing + 1)); status=1
+            continue
+          fi
+          if [[ ! -f "${other}" ]]; then
+            echo "::error::'${rel}' exists in directory-a but is missing from directory-b (expected '${other}')"
+            missing=$((missing + 1)); status=1
+            continue
+          fi
+
           out="${out_root}/${rel%.pdf}"
           mkdir -p -- "${out}"
+          compared=$((compared + 1))
           # Keep going after a difference so every PDF is compared, and fail at the end.
           if ! diffpdf --dpi "${DPI}" --skip-compare-text --output-dir "${out}" \
-                 "${i}" "${b}/${rel}"; then
-            echo "::warning::Differences or an error for: ${rel}"
+                 "${i}" "${other}"; then
+            echo "::warning::Visual differences or a comparison error for: ${rel}"
             status=1
           fi
         done < <(find "${a}" -type f -name '*.pdf' -print0)
+
+        # Report PDFs that only exist in directory-b (the loop above only walks directory-a).
+        # Print a warning if files are missing in directory-a.
+        while IFS= read -r -d '' j; do
+          rel="${j#"${b}"/}"
+          if [[ ! -f "${a}/${rel}" ]]; then
+            echo "::warning::'${rel}' exists in directory-b but is missing from directory-a (expected '${a}/${rel}')"
+            missing=$((missing + 1));
+          fi
+        done < <(find "${b}" -type f -name '*.pdf' -print0)
+
+        echo "Compared ${compared} PDF pair(s); ${missing} file(s) missing a counterpart."
         exit "${status}"
